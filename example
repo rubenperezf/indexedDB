@@ -1,0 +1,74 @@
+    const dbconnect = window.indexedDB.open("correr", 1)
+    dbconnect.onupgradeneeded = ev => {
+      console.log("Upgrade DB")
+      const db = ev.target.result
+      const store = db.createObjectStore("User", {
+        keyPath: "id",
+        autoIncrement: true
+      })
+      store.createIndex("magicLink", "magicLink", { unique: false })
+    }
+
+    if (isEmpty(this.props.authenticatedUser)) {
+      // check for token in indexeddb storage
+
+      dbconnect.onsuccess = ev => {
+        const db = ev.target.result
+        const transaction = db.transaction("User", "readwrite")
+        transaction.oncomplete = ev => {
+          console.log("Data has been added successfully!")
+          const store = db.transaction("User", "readonly").objectStore("User")
+          const query = store.get(1) // single query
+          // const query = store.openCursor()
+          query.onerror = ev => {
+            console.error("Request failed!", ev.target.error.message)
+          }
+
+          // Processing of single query
+          query.onsuccess = ev => {
+            if (query.result) {
+              console.log(query.result.magicLink)
+              this.props
+                .dispatch(magicLink(query.result.magicLink))
+                .then(res => {
+                  console.log(res)
+                  setTimeout(() => {
+                    this.setState({
+                      renderRouter: true
+                    })
+                  }, 150)
+                })
+                .catch(err => {
+                  console.error(err)
+                  this.setState({
+                    renderRouter: true
+                  })
+                })
+            } else {
+              this.setState({
+                renderRouter: false
+              })
+            }
+          }
+        }
+      }
+    } else {
+      this.props
+        .dispatch(getMagicLink(this.props.authenticatedUser.id))
+        .then(res => {
+          dbconnect.onsuccess = ev => {
+            console.log("DB-Upgrade needed")
+            const db = ev.target.result
+            const transaction = db.transaction("User", "readwrite")
+            const store = transaction.objectStore("User")
+            const data = [{ magicLink: res.magic_link }]
+            data.forEach(el => store.add(el))
+            transaction.onerror = ev => {
+              console.error("An error has occured!", ev.target.error.message)
+            }
+          }
+        })
+      this.setState({
+        renderRouter: true
+      })
+    }
